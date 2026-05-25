@@ -21,6 +21,7 @@
         <module>llm-spring-ai</module>
         <module>llm-spring-ai-alibaba</module>
         <module>llm-langchain4j</module>
+        <module>llm-pdd-refund</module>
     </modules>
 
     <properties>
