@@ -18,4 +18,13 @@ package com.cyril.llm.pdd.model;
 //   2. @JsonPropertyDescription 是 Jackson 的注解，告诉 LLM 每个字段的含义
 //   3. record 的构造函数参数顺序就是 JSON 字段顺序
 
+import com.fasterxml.jackson.annotation.JsonPropertyDescription;
+
 // TODO: 在这里定义 record
+public record OrderChat(
+        @JsonPropertyDescription("订单号") String orderId,
+        @JsonPropertyDescription("用户Id") String userId,
+        @JsonPropertyDescription("对话Id") String chatId,
+        @JsonPropertyDescription("对话状态") ChatStatus statusÒ
+) {
+}

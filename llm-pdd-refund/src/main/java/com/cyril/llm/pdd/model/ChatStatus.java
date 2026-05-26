@@ -5,4 +5,7 @@ package com.cyril.llm.pdd.model;
 // 写完就编译验证： mvn -pl llm-pdd-refund compile
 public enum ChatStatus {
     // TODO: 在这里写枚举值
+    CHAT_START,
+    CHATTING,
+    CHAT_END
 }
