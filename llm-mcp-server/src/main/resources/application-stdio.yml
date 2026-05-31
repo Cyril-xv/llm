@@ -1,0 +1,22 @@
+# ┌────────────────────────────────────────────────────────────┐
+# │ Stdio 模式 —— 通过标准输入输出与客户端通信                   │
+# │                                                           │
+# │ 使用场景：本地轻量化工具，无需网络，适合 Cline 等桌面客户端    │
+# │                                                           │
+# │ 核心要求：控制台输出必须完全是 JSON（JSON-RPC），              │
+# │           不能有任何日志、banner 等多余字符！                 │
+# │           否则客户端解析 stdout 就会报错                     │
+# └────────────────────────────────────────────────────────────┘
+
+# TODO: 填写 Stdio 配置
+# 关键配置项（和默认 application.yml 不同）：
+#   spring.main.web-application-type: none   # 关闭 web 服务器
+#   spring.main.banner-mode: off             # 关闭启动 banner
+#   logging.level.root: OFF                  # 关闭所有日志输出
+#
+#   spring.ai.mcp.server:
+#     enabled: true
+#     name: mcp-server-stdio
+#     version: 1.0.0
+#     stdio: true       # 开启 Stdio 模式
+#     type: SYNC        # SYNC 或 ASYNC

@@ -1,0 +1,37 @@
+# ┌────────────────────────────────────────────────────────────┐
+# │ SSE 模式 —— 基于 HTTP 的双端点通信                          │
+# │                                                           │
+# │ 两个端点：                                                  │
+# │   sse-endpoint (/sse)：客户端订阅，接收服务端推送            │
+# │   sse-message-endpoint (/mcp/messages)：客户端发送请求      │
+# │                                                           │
+# │ 双端点架构：                                                │
+# │   客户端 →              → SSE 端点（听广播，接收推送）       │
+# │   （浏览器/     → SSE Server →                             │
+# │     MCP Client）  → Message 端点（写信发消息，发送请求）    │
+# └────────────────────────────────────────────────────────────┘
+
+server:
+  port: 8003
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+
+spring:
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: weather-sse-server
+        version: 1.0.0
+        type: SYNC
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        # SSE 两个端点的路径
+        sse-message-endpoint: /mcp/messages  # 客户端发送消息的 endpoint（写信）
+        sse-endpoint: /sse                   # 客户端订阅 SSE 的 endpoint（听收音机）

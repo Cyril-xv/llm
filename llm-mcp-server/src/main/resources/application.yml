@@ -1,0 +1,13 @@
+# TODO 步骤5：MCP Server 公共配置
+# 三种模式共用的配置写在 application.yml 中，
+# 模式特有的配置写在 application-{profile}.yml 中
+# 启动时用 --spring.profiles.active=stdio|sse|streamable 切换
+
+spring:
+  application:
+    name: llm-mcp-server
+
+# 三种模式的配置原则：
+#   Stdio:          禁止 Web 服务，纯 stdin/stdout JSON-RPC
+#   SSE:            启动 Web 服务，双端点通信
+#   Streamable HTTP: 启动 Web 服务，单端点通信

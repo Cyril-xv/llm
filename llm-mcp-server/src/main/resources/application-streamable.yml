@@ -1,0 +1,46 @@
+# ┌────────────────────────────────────────────────────────────┐
+# │ Streamable HTTP 模式 —— MCP 最新官方传输标准（2025.3）      │
+# │                                                           │
+# │ 相比 SSE 的改进：                                           │
+# │   1. 单端点双向通信（不用双端点）                             │
+# │   2. 支持断续重连和未确认消息重发                             │
+# │   3. 支持流式响应和普通 JSON 响应两种格式                     │
+# │   4. 官方推荐替代 SSE 的方案                                 │
+# │                                                           │
+# │ protocol 可选值：                                           │
+# │   STREAMABLE → 有状态模式（需 Mcp-Session-Id 维持会话）      │
+# │   STATELESS  → 无状态模式（每次请求独立，适合 Serverless）   │
+# └────────────────────────────────────────────────────────────┘
+
+server:
+  port: 8004
+  servlet:
+    encoding:
+      charset: UTF-8
+      force: true
+      enabled: true
+
+spring:
+  ai:
+    mcp:
+      server:
+        # protocol 值控制是否开启流式HTTP传输
+        # STREAMABLE：开启流式模式（需要下面的 streamable-http 配置）
+        protocol: STREAMABLE
+        name: streamable-mcp-server
+        version: 1.0.0
+        type: SYNC
+        # 用于指导 AI 模型行为的描述信息
+        instructions: "这个服务是用来查询城市天气的。"
+        capabilities:
+          tool: true
+          resource: false
+          prompt: false
+          completion: false
+        resource-change-notification: true
+        tool-change-notification: true
+        prompt-change-notification: true
+        streamable-http:
+          mcp-endpoint: /api/mcp
+          # 心跳间隔（注意写法和单位）
+          keep-alive-interval: 30s  # 设置 keep-alive 间隔为 30 秒
