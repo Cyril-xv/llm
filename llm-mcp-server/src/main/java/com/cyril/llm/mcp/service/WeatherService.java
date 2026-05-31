@@ -83,20 +83,21 @@ public class WeatherService {
      *
      * WeatherResponse 需要全参构造器或 setter 用来反序列化。
      */
-    @Tool(name = "query_weather_by_city_date",
-          description = "根据城市和日期获取天气信息")
+    @Tool(name = "query_weather_by_city_date", description = "根据城市和日期获取天气信息")
     public WeatherResponse queryWeather(WeatherRequest request) {
         try {
-            Thread.sleep(5000); // 模拟调用外部 API 耗时
+            Thread.sleep(5000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new RuntimeException(e);
         }
+
         double temp = Math.random() * 15 + 10;
+
         return new WeatherResponse(
                 request.getCity(),
                 request.getDate(),
-                "晴朗，有微风",
+                "晴朗,有微风",
                 temp
         );
     }

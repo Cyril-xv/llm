@@ -14,7 +14,17 @@ package com.cyril.llm.mcp;
 
 // TODO: 写 @SpringBootApplication 启动类
 
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
 // 启动方式（三种模式）：
 //   Stdio:         java -jar llm-mcp-server.jar --spring.profiles.active=stdio
 //   SSE:           java -jar llm-mcp-server.jar --spring.profiles.active=sse
 //   Streamable:    java -jar llm-mcp-server.jar --spring.profiles.active=streamable
+@SpringBootApplication
+public class McpServerApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(McpServerApplication.class, args);
+    }
+}

@@ -31,3 +31,18 @@ package com.cyril.llm.mcp.config;
 //   前者是"按需注册到某个 ChatClient"，后者是"注册到全局 MCP 服务"
 
 // TODO: 写 @Configuration 类 + @Bean 方法
+
+import com.cyril.llm.mcp.service.WeatherService;
+import org.springframework.ai.tool.ToolCallbackProvider;
+import org.springframework.ai.tool.method.MethodToolCallbackProvider;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+
+@Configuration
+public class McpConfig {
+
+    @Bean
+    public ToolCallbackProvider weatherTools(WeatherService weatherService){
+        return MethodToolCallbackProvider.builder().toolObjects(weatherService).build();
+    }
+}

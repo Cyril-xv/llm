@@ -20,3 +20,20 @@
 #     version: 1.0.0
 #     stdio: true       # 开启 Stdio 模式
 #     type: SYNC        # SYNC 或 ASYNC
+spring:
+  main:
+    web-application-type: none
+    banner-mode: off
+
+  ai:
+    mcp:
+      server:
+        enabled: true
+        name: mcp-server-stdio
+        version: 1.0.0
+        stdio: true
+        type: SYNC
+
+logging:
+  level:
+    root: off
