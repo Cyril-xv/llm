@@ -32,6 +32,15 @@
         <langchain4j.version>1.0.0-beta1</langchain4j.version>
     </properties>
 
+    <!-- 公共依赖：所有子模块自动继承 -->
+    <dependencies>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+    </dependencies>
+
     <dependencyManagement>
         <dependencies>
             <!-- Spring AI BOM -->

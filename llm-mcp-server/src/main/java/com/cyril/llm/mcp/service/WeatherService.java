@@ -53,3 +53,51 @@ package com.cyril.llm.mcp.service;
 //    @ToolParam(description) 来理解每个字段的含义
 
 // TODO: 写 WeatherService 类（需要 @Service）+ 两个 @Tool 方法
+
+import com.cyril.llm.mcp.model.WeatherRequest;
+import com.cyril.llm.mcp.model.WeatherResponse;
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.stereotype.Service;
+
+@Service
+public class WeatherService {
+
+    @Tool(description = "根据城市名称查询天气信息")
+    public String getWeather(String city) {
+        if (city == null || city.isEmpty()) {
+            return "请提供城市名称";
+        }
+        return switch (city) {
+            case "北京" -> "北京: 晴, 25°C";
+            case "上海" -> "上海: 多云, 22°C";
+            case "深圳" -> "深圳: 小雨, 28°C";
+            default -> city + ": 下雪, -20°C";
+        };
+    }
+
+    /*
+     * POJO 入参 + POJO 出参的 @Tool 方法
+     *
+     * WeatherRequest 使用了 Lombok @Data 注解，
+     * 框架会自动通过 setter 填充字段值。
+     *
+     * WeatherResponse 需要全参构造器或 setter 用来反序列化。
+     */
+    @Tool(name = "query_weather_by_city_date",
+          description = "根据城市和日期获取天气信息")
+    public WeatherResponse queryWeather(WeatherRequest request) {
+        try {
+            Thread.sleep(5000); // 模拟调用外部 API 耗时
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
+        double temp = Math.random() * 15 + 10;
+        return new WeatherResponse(
+                request.getCity(),
+                request.getDate(),
+                "晴朗，有微风",
+                temp
+        );
+    }
+}

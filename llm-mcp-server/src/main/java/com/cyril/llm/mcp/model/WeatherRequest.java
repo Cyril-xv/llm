@@ -25,4 +25,21 @@ package com.cyril.llm.mcp.model;
 //       这里必须用 class + getter/setter，因为框架需要通过
 //       setter 或构造器来设置字段值
 
-// TODO: 写 WeatherRequest 类
+import lombok.Data;
+import org.springframework.ai.tool.annotation.ToolParam;
+
+@Data   // lombok: 自动生成 getter/setter/toString/equals/hashCode
+public class WeatherRequest {
+
+    @ToolParam(description = "城市")
+    private String city;
+
+    @ToolParam(description = "日期")
+    private String date;
+
+    @ToolParam(description = "区县")
+    private String i;
+
+    @ToolParam(description = "街道")
+    private String s;
+}
