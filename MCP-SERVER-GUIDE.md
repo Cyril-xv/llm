@@ -1,90 +1,48 @@
-# 手把手：Spring AI MCP Server 实战教程
+# 🧭 MCP Server 实战教程
 
-> 从零构建 MCP Server，掌握 Stdio / SSE / Streamable HTTP 三种传输模式
-
----
-
-## 目录
-
-- [0. 前置准备](#0-前置准备)
-- [1. 第一步：启动类（1 分钟）](#1-第一步启动类-1-分钟)
-- [2. 第二步：天气查询工具（10 分钟）](#2-第二步天气查询工具-10-分钟)
-- [3. 第三步：POJO 入参出参（10 分钟）](#3-第三步pojo-入参出参-10-分钟)
-- [4. 第四步：注册 MCP 工具（5 分钟）](#4-第四步注册-mcp-工具-5-分钟)
-- [5. 第五步：配置三种模式（15 分钟）](#5-第五步配置三种模式-15-分钟)
-- [6. 运行与测试](#6-运行与测试)
-- [7. 深度理解：MCP 协议与 JSON-RPC 生命周期](#7-深度理解mcp-协议与-json-rpc-生命周期)
-- [8. 接入 Cline 使用](#8-接入-cline-使用)
-- [9. 常见错误与解决](#9-常见错误与解决)
+> 看不懂的术语不硬记，先看它在终端里长什么样
 
 ---
 
-## 0. 前置准备
-
-### 0.1 什么是 MCP？
-
-**MCP（Model Context Protocol）** 是 Anthropic 提出的开放协议，用于 AI 客户端（如 Cline、Claude Desktop）发现和调用外部工具。
-
-类比理解：
+## 📖 你能从这个教程学到什么？
 
 ```
-传统 API:  前端 → 后端 API → 数据库
-MCP:      AI 客户端 → MCP Server → 天气服务 / 数据库 / 文件系统
-                       ↑
-                  你写的 @Tool 方法
+写完代码 + 跑完这 3 种模式 = 你就能说清楚：
+  ❓ MCP 是什么
+  ❓ Stdio / SSE / Streamable HTTP 有什么区别
+  ❓ 为什么同一个 jar 可以换 3 种方式启动
+  ❓ 你刚才在终端看到的那段 JSON 是什么意思
 ```
 
-MCP 定义了三种传输方式：
+---
 
-| 模式 | 通信方式 | 适用场景 |
-|------|----------|----------|
-| **Stdio** | 标准输入输出 | 本地工具，无需网络 |
-| **SSE** | HTTP 双端点 | 远程服务，需要推送 |
-| **Streamable HTTP** | HTTP 单端点 | 远程服务，推荐替代 SSE |
+## ⚡ 准备工作：先跑起来再说
 
-### 0.2 模块文件清单
+### 第 0 课：你的代码在哪里？
 
 ```
 llm-mcp-server/
-├── pom.xml                            # MCP Server 依赖
-└── src/main/
-    ├── java/com/cyril/llm/mcp/
-    │   ├── McpServerApplication.java   # 启动类
-    │   ├── config/
-    │   │   └── McpConfig.java          # ToolCallbackProvider Bean
-    │   ├── service/
-    │   │   └── WeatherService.java     # @Tool 方法定义
-    │   └── model/
-    │       ├── WeatherRequest.java     # POJO 入参
-    │       └── WeatherResponse.java    # POJO 出参
-    └── resources/
-        ├── application.yml             # 公共配置
-        ├── application-stdio.yml       # Stdio 配置
-        ├── application-sse.yml         # SSE 配置
-        └── application-streamable.yml  # Streamable HTTP 配置
+├── pom.xml                                  ← 只依赖一个 spring-ai-starter-mcp-server-webmvc
+├── src/main/java/com/cyril/llm/mcp/
+│   ├── McpServerApplication.java            ← @SpringBootApplication 启动类（最简单的那种）
+│   ├── config/McpConfig.java                ← 把 @Tool 注册到 MCP 协议
+│   ├── service/WeatherService.java          ← 你写的 2 个 @Tool 方法
+│   └── model/
+│       ├── WeatherRequest.java              ← POJO 入参（city, date, i, s）
+│       └── WeatherResponse.java             ← POJO 出参（city, date, weather, temperature）
+└── src/main/resources/
+    ├── application.yml                      ← 公共配置（application.name 等）
+    ├── application-stdio.yml                ← Stdio 模式配置
+    ├── application-sse.yml                  ← SSE 模式配置
+    └── application-streamable.yml           ← Streamable HTTP 模式配置
 ```
 
-### 0.3 依赖说明
+### 第 1 课：怎么切换模式？
 
-pom.xml 只引入了 `spring-ai-starter-mcp-server-webmvc`：
-
-```xml
-<dependency>
-    <groupId>org.springframework.ai</groupId>
-    <artifactId>spring-ai-starter-mcp-server-webmvc</artifactId>
-</dependency>
-```
-
-这个 starter 包含了：
-- Spring Boot Web（MVC）
-- Spring AI MCP Server 核心
-- MCP 的 SSE 和 Streamable HTTP 支持
-- 自动配置（`@EnableAutoConfiguration`）
-
-### 0.4 三个模式的切换方式
+**答案**：同一个 jar，启动时加 `--spring.profiles.active=` 参数切换。
 
 ```bash
-# 同一个 jar，用 spring.profiles.active 切换模式
+# 三种模式就这一行不同：
 java -jar llm-mcp-server.jar --spring.profiles.active=stdio
 java -jar llm-mcp-server.jar --spring.profiles.active=sse
 java -jar llm-mcp-server.jar --spring.profiles.active=streamable
@@ -92,567 +50,459 @@ java -jar llm-mcp-server.jar --spring.profiles.active=streamable
 
 ---
 
-## 1. 第一步：启动类（1 分钟）
+## 👀 第 2 课：你在终端到底看到了什么？
 
-打开 `McpServerApplication.java`，只需要最标准的 Spring Boot 启动类：
+回忆一下，你跑完这条命令：
 
-```java
-package com.cyril.llm.mcp;
+```bash
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{...}}' \
+  | java -jar xxx.jar --spring.profiles.active=stdio
+```
 
-import org.springframework.boot.SpringApplication;
-import org.springframework.boot.autoconfigure.SpringBootApplication;
+终端打印了一段 JSON：
 
-@SpringBootApplication
-public class McpServerApplication {
-
-    public static void main(String[] args) {
-        SpringApplication.run(McpServerApplication.class, args);
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "protocolVersion": "2024-11-05",
+    "capabilities": {
+      "tools": {"listChanged": true},
+      "prompts": {"listChanged": true},
+      "resources": {...}
+    },
+    "serverInfo": {
+      "name": "mcp-server-stdio",
+      "version": "1.0.0"
     }
+  }
 }
 ```
 
-**关键理解**：
-- 不加任何额外配置！所有的 MCP 行为通过配置文件控制
-- `@SpringBootApplication` 会自动扫描 `@Service`、`@Configuration` 等注解
+**这不是乱码，这是 MCP 协议在工作！** 我们来逐层拆解。
+
+### 2.1 你做了什么事？
+
+```
+你（电脑前）                    MCP Server（Java 进程）
+  │                                   │
+  │—— echo '{"jsonrpc":"2.0",...}' ──→│  你往它的"耳朵"（stdin）说了一句话
+  │                                   │
+  │←—— {"result":{"serverInfo":...}} —│  它往你的"眼睛"（stdout）回了一句话
+  │                                   │
+```
+
+> **Stdio = Standard I/O（标准输入输出）**
+> 就像两个人面对面说话，你说一句它回一句。
+> 不需要网络，不需要浏览器，不需要端口号。
+
+### 2.2 那句 JSON 是什么意思？
+
+你发出去的（请求）：
+
+| 字段 | 值 | 意思 |
+|------|----|------|
+| `jsonrpc` | `"2.0"` | "我用的是 JSON-RPC 2.0 协议" |
+| `id` | `1` | "这是编号 1 的请求" |
+| `method` | `"initialize"` | "初次见面，握个手" |
+| `params` | `{...}` | "这是我的能力信息" |
+
+服务端返回的（响应）：
+
+| 字段 | 值 | 意思 |
+|------|----|------|
+| `id` | `1` | "这是对编号 1 请求的回复" |
+| `result.serverInfo.name` | `"mcp-server-stdio"` | "我叫 mcp-server-stdio" |
+| `result.serverInfo.version` | `"1.0.0"` | "我的版本是 1.0.0" |
+| `result.capabilities.tools` | `{...}` | "我支持工具调用" |
+
+> **合起来就是：**
+> 你："你好，我叫 test-client，版本 1.0，我用 JSON-RPC 2.0 协议"
+> 服务端："你好，我叫 mcp-server-stdio 版本 1.0.0，我会查天气工具"
 
 ---
 
-## 2. 第二步：天气查询工具（10 分钟）
+## 🤔 第 3 课：为什么我们要搞 3 种模式？
 
-> 知识点：**@Tool 注解 —— 和你在 PDD 模块写的一模一样**
+本质是解决同一个问题：**AI 客户端（Cline、Chatbox）怎么调用你的 @Tool 方法？**
 
-### 2.1 WeatherService.java
+但是通信方式不同：
 
-打开 `service/WeatherService.java`，实现一个简单的天气查询工具：
-
-```java
-package com.cyril.llm.mcp.service;
-
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.stereotype.Service;
-
-@Service
-public class WeatherService {
-
-    @Tool(description = "根据城市名称查询天气信息")
-    public String getWeather(String city) {
-        if (city == null || city.isBlank()) {
-            return "请提供城市名称";
-        }
-        return switch (city) {
-            case "北京" -> "北京: 晴, 25°C";
-            case "上海" -> "上海: 多云, 22°C";
-            case "深圳" -> "深圳: 小雨, 28°C";
-            default -> city + ": 下雪, -20°C";
-        };
-    }
-}
-```
-
-### 2.2 和 PDD 的 OrderTools 对比
+### 模式 1：Stdio —— 面对面说话
 
 ```
-PDD 模块:
-  @Tool(name = "apply_refund", description = "根据用户传入的订单信息发起退款")
-  → 通过 .tools(orderTools) 注册到 ChatClient
-  → 在 AI 客服对话中由 LLM 决定调用
-
-MCP 模块:
-  @Tool(description = "根据城市名称查询天气信息")
-  → 通过 ToolCallbackProvider Bean 注册到 MCP 协议
-  → 由 Cline 等 MCP 客户端发现并调用
+AI 客户端（Cline）               MCP Server（Java 进程）
+     │                                │
+     │—— 启动 java 进程 ————————————→│  Cline 帮你把程序跑起来
+     │                                │
+     │—— stdin: "查北京天气" ————————→│  Cline 通过键盘（stdin）问你
+     │                                │
+     │←—— stdout: "北京: 晴, 25°C" ——│  你通过屏幕（stdout）回答
+     │                                │
+     │—— ... 持续对话 ... ———————————→│  进程不退出，一直聊
+     │                                │
+     │—— 关闭进程 ————————————————————→│  聊完了关掉
 ```
 
-**工具定义是同一个 @Tool，但注册方式不同。** PDD 是 ChatClient 手动挂载，MCP 是全局自动注册。
+**特点：**
+- ✅ 不依赖网络
+- ✅ 不需要 Web 服务器
+- ❌ 必须在同一台机器上
+
+**配置文件 `application-stdio.yml` 为什么这样写？**
+
+```yaml
+spring:
+  main:
+    web-application-type: none   # "我不需要 Tomcat Web 服务器"—— 因为我是直接 stdin/stdout
+    banner-mode: off             # "不要打印 Spring 的大 Logo" —— 会污染 JSON 输出
+
+  ai:
+    mcp:
+      server:
+        stdio: true              # "我用 Stdio 模式"
+        type: SYNC               # "一问一答，同步处理"
+
+logging:
+  level:
+    root: OFF                    # "所有日志都关了" —— 多于一个字符就坏了
+```
+
+> ⚠️ **为什么日志和 banner 必须关？**
+>
+> 假设你给 Cline 配了 Stdio，Cline 在后台启动了这个 jar。
+> Cline 一直在读这个程序的 stdout，等待 JSON 格式的回复。
+> 如果程序打印了 `[INFO] 2026-06-01 10:00:00 Started Application`，
+> Cline 解析这个非 JSON 内容 —— **报错！**
+>
+> 所以 Stdio 模式下，程序 stdout 只能输出 JSON，不能有别的。
 
 ---
 
-## 3. 第三步：POJO 入参出参（10 分钟）
+### 模式 2：SSE —— 微信消息 + 收音机
 
-> 知识点：**@Tool 方法使用 POJO 作为入参和出参 ★★★**
+首先你要理解什么是 SSE：
 
-### 3.1 什么时候需要用 POJO 入参？
+> **SSE = Server-Sent Events（服务端推送）**
+> 普通 HTTP：  你问一句，它答一句（一问一答）
+> SSE：        你打开一个连接，不用问，服务端自己会不断发消息过来
 
-当工具方法需要传入多个参数，参数之间有关联，或者参数有很多个时 ——
-
-```java
-// 不优雅：5 个基本类型参数，大模型很容易传错
-@Tool(description = "查询天气")
-public String queryWeather(String city, String date, String district,
-                           String street, String unit) { ... }
-```
-
-```java
-// 优雅：把参数封装成 POJO
-@Tool(description = "根据城市和日期获取天气信息")
-public WeatherResponse queryWeather(WeatherRequest request) { ... }
-```
-
-### 3.2 WeatherRequest.java
-
-打开 `model/WeatherRequest.java`：
-
-```java
-package com.cyril.llm.mcp.model;
-
-import org.springframework.ai.tool.annotation.ToolParam;
-
-public class WeatherRequest {
-
-    @ToolParam(description = "城市")
-    private String city;
-
-    @ToolParam(description = "日期")
-    private String date;
-
-    // ★ 故意用了含糊的字段名，看看 @ToolParam 的作用
-    @ToolParam(description = "区县")
-    private String i;
-
-    @ToolParam(description = "街道")
-    private String s;
-
-    // getter 和 setter（必须！框架通过 setter 或构造器赋值）
-    public String getCity() { return city; }
-    public void setCity(String city) { this.city = city; }
-    public String getDate() { return date; }
-    public void setDate(String date) { this.date = date; }
-    public String getI() { return i; }
-    public void setI(String i) { this.i = i; }
-    public String getS() { return s; }
-    public void setS(String s) { this.s = s; }
-}
-```
-
-### 3.3 @ToolParam 为什么重要？
-
-对比两种写法，看大模型生成的 JSON 参数：
+SSE 模式用**两个端点**：
 
 ```
-无 @ToolParam:
-  → 大模型看到字段名为 "i" 和 "s"
-  → 无法理解含义 → 可能会填错或留空
-
-有 @ToolParam(description = "区县"):
-  → 大模型看到 "区县" → 能正确提取用户提到的区县名
+                              MCP Server（Web 服务）
+                                  │
+    ASK 端点（写信）              │    PUSH 端点（听广播）
+  POST /mcp/messages              │    GET /sse
+      │                           │        │
+      │                           │←———————│ 客户端打开收音机
+      │                           │        │  服务端说："你的 sessionId 是 xyz"
+      │                           │        │
+      │————————→                  │        │  客户端写信问"有哪些工具？"
+      │  "帮我查北京天气"          │        │
+      │                           │————————→│  回复走广播通道推回去
+      │                           │  "北京: 晴, 25°C"
+      │                           │        │
 ```
 
-⚠️ **最佳实践**：**每个字段都要加 @ToolParam(description)**，不要相信大模型能猜对你的字段含义！
+**为什么 SSE 需要两个端点？**
 
-### 3.4 WeatherResponse.java
+因为 HTTP 本身是"你问我答"的。服务端想主动发消息给客户端，普通的 HTTP 做不到。
+所以 SSE 模式拆成：
+1. **一个 GET /sse 连接** —— 一直开着，服务端有消息就往上推（单向广播）
+2. **一个 POST /mcp/messages** —— 客户端发请求到这里（单向投信）
 
-打开 `model/WeatherResponse.java`：
+两个合起来就是双向通信。
 
-```java
-package com.cyril.llm.mcp.model;
+**配置文件的关键配置：**
 
-public class WeatherResponse {
-    private String city;
-    private String date;
-    private String weather;
-    private double temperature;
+```yaml
+server:
+  port: 8003                               # 启动 Web 服务，端口 8003
 
-    // 必须有全参构造器（框架通过它或 setter 填充字段）
-    public WeatherResponse(String city, String date, String weather, double temperature) {
-        this.city = city;
-        this.date = date;
-        this.weather = weather;
-        this.temperature = temperature;
-    }
-
-    // getter 和 setter
-    public String getCity() { return city; }
-    public void setCity(String city) { this.city = city; }
-    public String getDate() { return date; }
-    public void setDate(String date) { this.date = date; }
-    public String getWeather() { return weather; }
-    public void setWeather(String weather) { this.weather = weather; }
-    public double getTemperature() { return temperature; }
-    public void setTemperature(double temperature) { this.temperature = temperature; }
-}
+spring:
+  ai:
+    mcp:
+      server:
+        sse-message-endpoint: /mcp/messages  # "写信的地址"
+        sse-endpoint: /sse                   # "听广播的地址"
 ```
 
-### 3.5 回到 WeatherService，添加第二个 @Tool 方法
+**测试方法（需要 2 个终端）：**
 
-```java
-@Service
-public class WeatherService {
+```bash
+# 终端 1：启动服务
+java -jar llm-mcp-server-0.0.1-SNAPSHOT.jar --spring.profiles.active=sse
 
-    // 第一个工具：简单入参
-    @Tool(description = "根据城市名称查询天气信息")
-    public String getWeather(String city) { ... }
+# 终端 2：开广播（打开一个长连接，保持不关）
+curl -N http://localhost:8003/sse
+# 输出: data:/mcp/messages?sessionId=xxxx-xxxx
 
-    // 第二个工具：POJO 入参 ★
-    @Tool(name = "query_weather_by_city_date",
-          description = "根据城市和日期获取天气信息")
-    public WeatherResponse queryWeather(WeatherRequest request) {
-        try {
-            Thread.sleep(5000); // 模拟调用外部 API 耗时
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
-        }
-        double temp = Math.random() * 15 + 10;
-        return new WeatherResponse(
-            request.getCity(),
-            request.getDate(),
-            "晴朗，有微风",
-            temp
-        );
-    }
-}
+# 终端 3：发消息
+curl -X POST "http://localhost:8003/mcp/messages?sessionId=xxxx-xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
+# 注意！这条命令的响应不会出现在终端 3，而是出现在终端 2 的 SSE 流里！
 ```
 
 ---
 
-## 4. 第四步：注册 MCP 工具（5 分钟）
+### 模式 3：Streamable HTTP —— 一个视频电话搞定
 
-> 知识点：**ToolCallbackProvider —— MCP 的工具注册入口**
+**SSE 的问题**：两个端点，还要维护一个长连接，麻烦。
 
-打开 `config/McpConfig.java`：
+**Streamable HTTP 的改进**：一个端点就够了。
+
+```
+                              MCP Server（Web 服务）
+                                  │
+                        POST /api/mcp
+                              │
+    ｜——————————→              │
+    ｜ "初始化+查工具"          │
+    ｜                         │
+    ｜←——————————              │
+    ｜  一次 HTTP 响应返回全部结果
+    ｜  可能包含多个事件
+```
+
+**和 SSE 的核心区别：**
+
+| | SSE | Streamable HTTP |
+|--|-----|-----------------|
+| 端点数量 | 2 个 | 1 个 |
+| 是否需要长连接 | 是的，/sse 一直开着 | 不需要，请求-响应模式 |
+| 断线重连 | 需自己实现 | 内置支持 |
+| 状态管理 | 只有有状态 | 有状态/无状态可选 |
+
+**配置文件的关键配置：**
+
+```yaml
+server:
+  port: 8004
+
+spring:
+  ai:
+    mcp:
+      server:
+        protocol: STREAMABLE           # STREAMABLE（有状态）或 STATELESS（无状态）
+        streamable-http:
+          mcp-endpoint: /api/mcp        # "唯一的通信地址"
+          keep-alive-interval: 30s      # "30 秒发一次心跳"
+```
+
+**protocol 的两个值：**
+
+| protocol | 需要 Mcp-Session-Id？ | 含义 |
+|----------|----------------------|------|
+| `STREAMABLE` | 需要 | 服务端记得你是谁（有状态） |
+| `STATELESS` | 不需要 | 每次请求都是新人（无状态） |
+
+---
+
+## 🆚 第 4 课：三张图对比三种模式
+
+### 一句话总结
+
+```
+Stdio：         "面对面说话"     —— 本地，不要网络，不要端口
+SSE：           "写信+收音机"    —— 远程，两个地址（一个写一个听）
+Streamable HTTP："打视频电话"     —— 远程，一个地址搞定
+```
+
+### 一张表对比
+
+| | Stdio | SSE | Streamable HTTP |
+|--|-------|-----|----------------|
+| **通信方式** | stdin/stdout（管道） | HTTP 双端点 | HTTP 单端点 |
+| **需要网络？** | ❌ 不需要 | ✅ 需要 | ✅ 需要 |
+| **需要 Web 服务？** | ❌ 不需要 | ✅ 需要 Tomcat | ✅ 需要 Tomcat |
+| **端点/地址数** | 0 个 | 2 个（/sse + /mcp/messages） | 1 个（/api/mcp）|
+| **适合谁用？** | Cline、Chatbox 等桌面工具 | 远程服务器上的服务 | 推荐替代 SSE |
+| **你配了什么端口？** | 无 | 8003 | 8004 |
+
+### 你代码中的三个 yml 文件对照
+
+**application.yml（公共配置——三种模式都要的）**
+```yaml
+spring:
+  application:
+    name: llm-mcp-server
+```
+
+**application-stdio.yml（Stdio 特有）**
+```yaml
+web-application-type: none    ← 不开 Web 服务
+stdio: true                   ← 用 Stdio 模式
+logging.level.root: OFF       ← 静默输出
+```
+
+**application-sse.yml（SSE 特有）**
+```yaml
+server.port: 8003              ← 开 Web 服务
+sse-endpoint: /sse             ← 广播地址
+sse-message-endpoint: /mcp/messages   ← 写信地址
+```
+
+**application-streamable.yml（Streamable HTTP 特有）**
+```yaml
+server.port: 8004              ← 开 Web 服务
+protocol: STREAMABLE           ← 有状态模式
+mcp-endpoint: /api/mcp         ← 唯一地址
+keep-alive-interval: 30s       ← 心跳
+```
+
+---
+
+## 🔄 第 5 课：MCP 协议的三次握手（生命周期）
+
+不管是哪种模式，MCP 协议的对话流程都一样，分为 3 个阶段：
+
+```
+阶段 1：握手（initialize）
+  客户端 → {"method":"initialize"}     → 服务端
+  客户端 ← {"result":{"serverInfo":...}} ← 服务端
+  （双方确认身份和能力）
+
+阶段 2：发现（notifications/initialized + tools/list）
+  客户端 → {"method":"notifications/initialized"} → 服务端
+  （客户端说"我准备好了"）
+  客户端 → {"method":"tools/list"}               → 服务端
+  客户端 ← {"result":{"tools":["getWeather",...]}} ← 服务端
+  （客户端问"你会啥？"，服务端回答工具列表）
+
+阶段 3：调用（tools/call）
+  客户端 → {"method":"tools/call","params":{"name":"getWeather","arguments":{"city":"北京"}}}
+  客户端 ← {"result":{"content":"北京: 晴, 25°C"}}
+  （客户端说"查北京天气"，服务端执行并返回）
+```
+
+> **你现在懂了为什么刚才 tools/list 没返回了吧？**
+>
+> 你用管道 `|` 一次性发送了 `initialize`，成功了。
+> 但服务端回复后还想读下一段 stdin，结果 stdin 已经关闭了（管道只送了一次数据）。
+>
+> 在真实的 Cline 里，Cline 会保持进程一直运行，持续读写 stdin/stdout。
+
+---
+
+## 🛠️ 第 6 课：你的 @Tool 方法是怎么被发现的？
+
+**两个关键问题：**
+
+### Q1：为什么 @Tool 方法能被 MCP 客户端发现？
+
+**答案**：`McpConfig.java` 中的 `ToolCallbackProvider` Bean。
 
 ```java
-package com.cyril.llm.mcp.config;
-
-import com.cyril.llm.mcp.service.WeatherService;
-import org.springframework.ai.tool.ToolCallbackProvider;
-import org.springframework.ai.tool.method.MethodToolCallbackProvider;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
-
 @Configuration
 public class McpConfig {
-
-    /*
-     * MethodToolCallbackProvider 会自动扫描 WeatherService 中
-     * 所有带有 @Tool 注解的方法，注册到 MCP 协议中。
-     *
-     * MCP Server 启动时，Spring AI 的自动配置会读取这个 Bean，
-     * 把工具列表通过 MCP 协议暴露给客户端（Cline 等）。
-     *
-     * 如果要注册多个 Service 中的工具，只需要：
-     *   .toolObjects(weatherService, anotherService, ...)
-     */
     @Bean
     public ToolCallbackProvider weatherTools(WeatherService weatherService) {
         return MethodToolCallbackProvider.builder()
-                .toolObjects(weatherService)  // 扫描这个对象里的 @Tool 方法
+                .toolObjects(weatherService) // ← 扫描 WeatherService 的所有 @Tool 方法
                 .build();
     }
 }
 ```
 
-**关键理解**：
+```
+Spring 启动时：
+  1. 扫描到 McpConfig → 发现 @Bean weatherTools
+  2. MethodToolCallbackProvider 自动扫描 WeatherService 里的 @Tool 方法
+  3. Spring AI MCP 自动配置读取这个 Bean
+  4. MCP 客户端调用 tools/list → 服务端返回所有 @Tool 方法列表
+```
+
+### Q2：和 PDD 模块的 @Tool 有什么不同？
 
 ```
-PDD 的注册方式（手动绑定到某次对话）：
-  chatClient.prompt().tools(orderTools).stream()
-
-MCP 的注册方式（全局注册，协议发现）：
-  @Bean ToolCallbackProvider → Spring AI 自动配置 → MCP 协议暴露
+PDD 模块的 @Tool：
+  你写 @Tool → 通过 .tools(orderTools) 手动挂载到某一次对话
+  → 只在这次对话中可用
+  
+MCP 模块的 @Tool：
+  你写 @Tool → 通过 ToolCallbackProvider Bean 注册到 MCP 协议
+  → 所有 MCP 客户端（Cline、Chatbox）都能发现和调用
 ```
+
+**工具定义是一样的@Tool，但注册方式不同。**
 
 ---
 
-## 5. 第五步：配置三种模式（15 分钟）
+## 🎮 第 7 课：动手测试
 
-> 知识点：**三种传输模式的 Spring 配置 + 各自的适用场景**
-
-### 5.1 Stdio 模式（application-stdio.yml）
-
-**原理**：程序通过标准输入接收 JSON-RPC 请求，通过标准输出返回结果。
-
-**关键要求**：控制台输出**必须纯 JSON**，不能有任何多余字符！
-
-```yaml
-# 关闭 Web 服务
-spring:
-  main:
-    web-application-type: none
-    banner-mode: off
-
-  ai:
-    mcp:
-      server:
-        enabled: true
-        name: mcp-server-stdio
-        version: 1.0.0
-        stdio: true       # 开启 Stdio 模式
-        type: SYNC
-
-# 关闭所有日志输出！
-logging:
-  level:
-    root: OFF
-```
-
-**生命周期的每一帧 stdout 输出都是这种格式**：
-
-```
-← stdout 输出 →
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2024-11-05","capabilities":{...}}}
-{"jsonrpc":"2.0","id":2,"result":{"tools":[...]}}
-```
-
-**有一条多余的 `System.out.println` 就会导致客户端解析失败！**
-
-### 5.2 SSE 模式（application-sse.yml）
-
-**原理**：双端点 HTTP 通信，一个端点接收请求，一个端点推送事件。
-
-```
-  客户端 ──────────────────────────── MCP Server
-    │                                      │
-    │──── GET /sse (订阅 SSE 流) ──────────→│  ← 听广播
-    │←─── SSE: sessionId=xxx ──────────────│  ← 拿到的 sessionId
-    │                                      │
-    │──── POST /mcp/messages?sessionId=xx →│  ← 发消息
-    │←─── SSE event (响应) ────────────────│  ← 响应通过 SSE 流推送
-```
-
-```yaml
-server:
-  port: 8003
-  servlet:
-    encoding:
-      charset: UTF-8
-      force: true
-      enabled: true
-
-spring:
-  ai:
-    mcp:
-      server:
-        enabled: true
-        name: weather-sse-server
-        version: 1.0.0
-        type: SYNC
-        sse-message-endpoint: /mcp/messages  # 客户端发送消息的 endpoint
-        sse-endpoint: /sse                    # 客户端订阅 SSE 的 endpoint
-```
-
-### 5.3 Streamable HTTP 模式（application-streamable.yml）
-
-**原理**：单端点 HTTP 通信，同时支持普通 JSON 响应和流式 SSE 响应。
-
-**这是 MCP 官方推荐替代 SSE 的方案。** 优点：
-- 单端点（不用维护两个 URL）
-- 支持断线重连
-- 支持未确认消息重发
-
-```yaml
-server:
-  port: 8004
-  servlet:
-    encoding:
-      charset: UTF-8
-      force: true
-      enabled: true
-
-spring:
-  ai:
-    mcp:
-      server:
-        # STREAMABLE = 有状态模式（需要 Mcp-Session-Id）
-        # STATELESS  = 无状态模式（每次请求独立）
-        protocol: STREAMABLE
-        name: streamable-mcp-server
-        version: 1.0.0
-        type: SYNC
-        instructions: "这个服务是用来查询城市天气的。"
-        streamable-http:
-          mcp-endpoint: /api/mcp
-          keep-alive-interval: 30s
-```
-
-**protocol 的两个值对比**：
-
-| 值 | 状态 | Mcp-Session-Id | 适用场景 |
-|----|------|---------------|----------|
-| `STREAMABLE` | 有状态 | 需要 | 多轮交互、上下文依赖 |
-| `STATELESS` | 无状态 | 不需要 | 单次调用、Serverless |
-
----
-
-## 6. 运行与测试
-
-### 6.1 编译
+### 先把 jar 打好
 
 ```bash
-mvn -pl llm-mcp-server compile
+cd "/Users/yangxu/idea Projects/llm"
+
+# 打包
+./mvnw -pl llm-mcp-server package -DskipTests
 ```
 
-### 6.2 Stdio 模式测试
+### 7.1 测试 Stdio 模式
 
 ```bash
-# 启动（纯后台，没有 web 端口）
-mvn -pl llm-mcp-server spring-boot:run \
-  -Dspring-boot.run.profiles=stdio
+# 初始化握手
+echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}' \
+  | java -jar llm-mcp-server/target/llm-mcp-server-0.0.1-SNAPSHOT.jar --spring.profiles.active=stdio
+
+# 如果正常 → 你会看到一段 JSON 返回（里面有 serverInfo 和 capabilities）
 ```
 
-Stdio 模式的测试需要通过标准输入发送 JSON-RPC 消息。可以用 Python 脚本或者 echo 管道：
+### 7.2 测试 SSE 模式
+
+需要打开**三个终端**：
 
 ```bash
-# 简单的初始化请求
-echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test-client","version":"1.0"}}}' | \
-  java -jar target/llm-mcp-server-*.jar --spring.profiles.active=stdio
-```
+# 终端 1：启动 SSE 服务
+java -jar llm-mcp-server/target/llm-mcp-server-0.0.1-SNAPSHOT.jar --spring.profiles.active=sse
 
-### 6.3 SSE 模式测试
+# 终端 2：订阅 SSE（打开广播，保持运行不要关）
+curl -N http://localhost:8003/sse
 
-```bash
-# 启动
-mvn -pl llm-mcp-server spring-boot:run \
-  -Dspring-boot.run.profiles=sse
-```
+# 从终端 2 的输出中复制 sessionId（类似 xxxx-xxxx-xxxx-xxxx）
 
-浏览器打开 `http://localhost:8003/sse`，会看到：
-
-```
-data:/mcp/messages?sessionId=xxxx-xxxx-xxxx-xxxx
-```
-
-用 Postman 或 curl 模拟 MCP Client 的生命周期：
-
-**步骤 1：初始化**
-```bash
-curl -X POST "http://localhost:8003/mcp/messages?sessionId=xxx" \
+# 终端 3：发送初始化请求
+curl -X POST "http://localhost:8003/mcp/messages?sessionId=xxxx-xxxx" \
   -H "Content-Type: application/json" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
 ```
 
-**步骤 2：通知已初始化**
-```bash
-curl -X POST "http://localhost:8003/mcp/messages?sessionId=xxx" \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":1,"method":"notifications/initialized"}'
-```
+> 观察终端 2 中是否出现了响应内容。
 
-**步骤 3：查询工具列表**
-```bash
-curl -X POST "http://localhost:8003/mcp/messages?sessionId=xxx" \
-  -H "Content-Type: application/json" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-```
-
-### 6.4 Streamable HTTP 模式测试
+### 7.3 测试 Streamable HTTP 模式
 
 ```bash
-# 启动
-mvn -pl llm-mcp-server spring-boot:run \
-  -Dspring-boot.run.profiles=streamable
-```
+# 终端 1：启动 Streamable HTTP 服务
+java -jar llm-mcp-server/target/llm-mcp-server-0.0.1-SNAPSHOT.jar --spring.profiles.active=streamable
 
-**请求头必须加 Accept: text/event-stream**（Streamable HTTP 可能返回 SSE 或普通 JSON）：
-
-```bash
-# 初始化
+# 终端 2：发送初始化请求（一个端点就够了）
 curl -X POST "http://localhost:8004/api/mcp" \
   -H "Content-Type: application/json" \
   -H "Accept: text/event-stream" \
   -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"1.0"}}}'
 ```
 
-**注意响应头中的 `Mcp-Session-Id`，后续请求必须带上它：**
-
-```bash
-# 二次请求带 session
-curl -X POST "http://localhost:8004/api/mcp" \
-  -H "Content-Type: application/json" \
-  -H "Accept: text/event-stream" \
-  -H "Mcp-Session-Id: xxxx-xxxx" \
-  -d '{"jsonrpc":"2.0","id":2,"method":"tools/list"}'
-```
-
 ---
 
-## 7. 深度理解：MCP 协议与 JSON-RPC 生命周期
+## 🚀 第 8 课：接入 Cline / Chatbox
 
-### 7.1 JSON-RPC 协议格式
+### Stdio 模式接入（推荐本地用）
 
-MCP 使用 JSON-RPC 2.0 协议。每个消息有三个字段：
-
-```json
-{
-  "jsonrpc": "2.0",          // 协议版本
-  "id": 1,                   // 请求 ID（用于匹配请求和响应）
-  "method": "tools/list",    // 方法名
-  "params": {}               // 参数（可选）
-}
-```
-
-### 7.2 MCP 生命周期三阶段
-
-```
-阶段 1：初始化
-  客户端 → initialize → 服务端
-  客户端 ← initialized result ← 服务端  （协商协议版本和能力）
-  客户端 → notifications/initialized → 服务端  （确认准备就绪）
-
-阶段 2：能力协商
-  客户端 → tools/list → 服务端
-  客户端 ← [{name:"getWeather", ...}] ← 服务端  （获取可用工具列表）
-  客户端 → resources/list → 服务端
-  客户端 → prompts/list → 服务端
-
-阶段 3：工具调用
-  客户端 → tools/call → 服务端
-  客户端 ← {content: "北京: 晴, 25°C"} ← 服务端  （执行业务逻辑）
-```
-
-SSE 模式下，阶段 1 和 2 的响应通过 **SSE 事件流** 推送给客户端。Streamable HTTP 模式则直接在 HTTP 响应中返回。
-
-### 7.3 Streamable HTTP 的特殊之处
-
-Streamable HTTP 的请求头必须包含 `Accept: text/event-stream`：
-
-```http
-POST /api/mcp
-Content-Type: application/json
-Accept: text/event-stream   ← 必须声明
-```
-
-原因：服务端可能会返回两种格式 ——
-- SSE 流（多事件）
-- 普通 JSON（单次响应）
-- 客户端必须提前声明自己支持这两种格式
-
-### 7.4 无状态 (STATELESS) vs 有状态 (STREAMABLE)
-
-```yaml
-spring:
-  ai:
-    mcp:
-      server:
-        protocol: STATELESS   # 无状态
-```
-
-**无状态场景**：
-- 客户端不需要 `Mcp-Session-Id`
-- 每次请求完全独立
-- 适合：查询天气、计算器、数据库查询等单次操作
-
-**有状态场景**：
-- 客户端需要 `Mcp-Session-Id`
-- 服务端保存会话上下文
-- 适合：多轮对话、文件编辑、git 操作等需要上下文的场景
-
----
-
-## 8. 接入 Cline 使用
-
-### 8.1 Stdio 模式接入
+在 Cline 的 MCP 配置中：
 
 ```json
 {
   "mcpServers": {
-    "weather-stdio": {
-      "disabled": false,
-      "timeout": 60,
+    "weather": {
       "type": "stdio",
       "command": "java",
       "args": [
         "-jar",
-        "/path/to/llm-mcp-server/target/llm-mcp-server-0.0.1-SNAPSHOT.jar",
+        "/Users/yangxu/idea Projects/llm/llm-mcp-server/target/llm-mcp-server-0.0.1-SNAPSHOT.jar",
         "--spring.profiles.active=stdio"
       ]
     }
@@ -660,32 +510,29 @@ spring:
 }
 ```
 
-### 8.2 SSE 模式接入
+### SSE 模式接入（远程服务）
+
+先把 jar 部署到服务器上启动（端口 8003），然后在 Cline 中配置：
 
 ```json
 {
   "mcpServers": {
     "weather-sse": {
       "type": "sse",
-      "url": "http://127.0.0.1:8003/sse",
-      "autoApprove": [],
-      "timeout": 60,
-      "disabled": false
+      "url": "http://你的服务器IP:8003/sse"
     }
   }
 }
 ```
 
-### 8.3 Streamable HTTP 模式接入
+### Streamable HTTP 模式接入
 
 ```json
 {
   "mcpServers": {
     "weather-streamable": {
-      "url": "http://127.0.0.1:8004/api/mcp",
       "type": "streamableHttp",
-      "timeout": 60,
-      "disabled": false
+      "url": "http://你的服务器IP:8004/api/mcp"
     }
   }
 }
@@ -693,89 +540,50 @@ spring:
 
 ---
 
-## 9. 常见错误与解决
+## ⚠️ 第 9 课：常见问题
 
-### 9.1 Stdio 启动报错
+### Q：Stdio 启动后看到 [INFO] 日志怎么办？
 
-**现象**：启动后控制台输出非 JSON 内容，Cline 连接失败。
+**原因**：Maven 启动方式（`mvn spring-boot:run`）会有 Maven 自己的日志输出，这些会污染 JSON 流。
 
-**原因**：控制台有 banner、日志或其他多余输出。
+**解决**：改成 `java -jar` 直接启动（如本教程所示）。不要用 `mvn` 启动 Stdio 模式。
 
-**解决**：检查 `application-stdio.yml` 中是否设置了：
-```yaml
-spring.main.banner-mode: off
-logging.level.root: OFF
-```
-并且确认没有代码中调用 `System.out.println`（除了 @Tool 方法返回值）。
+### Q：SSE 模式发 POST 请求后没收到响应？
 
-### 9.2 SSE 连接后收不到结果
+**原因**：SSE 的响应不是通过 POST 响应的，而是通过 SSE 广播推送给你的。
 
-**现象**：访问 `/sse` 拿到 sessionId，但发 POST 请求后没响应。
+**检查**：看订阅了 `/sse` 的终端/浏览器是否收到了响应内容。
 
-**原因**：postman/curl 只发送了 POST 请求，但响应是通过 SSE 推回来的。需要在同一个 session 的 SSE 连接上监听到结果。
+### Q：Streamable HTTP 返回 400？
 
-**解决**：
-1. 浏览器开两个 tab
-2. Tab 1 打开 `http://localhost:8003/sse`，保持连接
-3. 从 Tab 1 的页面内容中复制 sessionId
-4. Tab 2 用 curl 发 POST 请求
-5. 观察 Tab 1 的 SSE 流中是否出现响应
+**原因**：缺少请求头 `Accept: text/event-stream`。
 
-### 9.3 Streamable HTTP 报 400/415
-
-**现象**：POST 请求返回 400 Bad Request。
-
-**原因**：请求头缺少 `Accept: text/event-stream`。
-
-**解决**：添加请求头：
+**解决**：加请求头：
 ```bash
 curl -H "Accept: text/event-stream" ...
 ```
 
-### 9.4 Mcp-Session-Id 错误
+### Q：@Tool 方法的 POJO 字段传错值？
 
-**现象**：Streamable HTTP 返回 session 相关的错误。
+**原因**：POJO 字段没有 `@ToolParam(description)`。
 
-**原因**：有状态模式下没有携带正确的 `Mcp-Session-Id`。
-
-**解决**：
-1. 初始化请求中获取 `Mcp-Session-Id` 响应头
-2. 后续所有请求在 Header 中带上：`Mcp-Session-Id: xxxx`
-
-### 9.5 @Tool POJO 参数无法被识别
-
-**现象**：大模型调用工具时把字段值传错了。
-
-**原因**：POJO 字段没有 `@ToolParam(description)`，大模型无法理解字段含义。
-
-**解决**：每个字段加上中文描述：
+**解决**：每个字段加中文描述：
 ```java
 @ToolParam(description = "区县")
-private String i;
+private String i;  // 字段名是 i，但大模型看到的是"区县"
 ```
 
 ---
 
-## 附录 A：三种模式对比总结
+## 📋 总结：一句话记住 MCP
 
-| 特性 | Stdio | SSE | Streamable HTTP |
-|------|-------|-----|-----------------|
-| 网络需求 | 不需要 | 需要 HTTP | 需要 HTTP |
-| 端点数量 | 0（stdin/stdout） | 2 | 1 |
-| 持续连接 | 持续 | 持续 | 支持断开重连 |
-| 状态管理 | 无状态 | 有状态（session） | 有状态/无状态可选 |
-| 适合场景 | 本地工具 | 远程服务 | 远程服务（推荐） |
-| 启动方式 | `java -jar` | `java -jar` | `java -jar` |
+```
+MCP 就是让 AI 客户端（Cline）能发现和调用你写的 @Tool 方法。
 
-## 附录 B：核心概念对照表
+3 种模式只是通信方式不同：
+  Stdio         → 面对面说话
+  SSE           → 写信 + 收音机
+  Streamable    → 视频电话
 
-| 术语 | 解释 |
-|------|------|
-| MCP | Model Context Protocol，AI 客户端与工具服务的通信协议 |
-| JSON-RPC 2.0 | MCP 使用的请求-响应协议格式 |
-| Stdio | 通过 stdin/stdout 通信的 MCP 传输方式 |
-| SSE | Server-Sent Events，服务端推送技术（MCP 的 HTTP 传输方式之一）|
-| Streamable HTTP | MCP 最新传输标准，单端点支持流式响应 |
-| ToolCallbackProvider | Spring AI 中把 @Tool 注册到 MCP 协议的桥梁 |
-| MethodToolCallbackProvider | 自动扫描对象中 @Tool 方法的实现 |
-| Mcp-Session-Id | Streamable HTTP 有状态模式中用于标识会话的 Header |
+代码写法和 @Tool 注解都一样，仅配置 yml 不同。
+```

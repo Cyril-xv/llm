@@ -23,6 +23,7 @@
         <module>llm-langchain4j</module>
         <module>llm-pdd-refund</module>
         <module>llm-mcp-server</module>
+        <module>llm-mcp-client</module>
     </modules>
 
     <properties>
