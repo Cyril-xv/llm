@@ -141,7 +141,7 @@ public class ManualStdioClient {
         // ─────────────────────────────────────
         // 步骤 2：构建 StdioClientTransport
         // ─────────────────────────────────────
-        // new StdioClientTransport(parameters, McpJsonMapper.createDefault())
+        // new StdioClientTransport(parameters, McpJsonDefaults.getMapper())
         // TODO
 
         // ─────────────────────────────────────
@@ -500,6 +500,7 @@ import io.modelcontextprotocol.client.McpClient;
 import io.modelcontextprotocol.client.transport.StdioClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientSseClientTransport;
 import io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport;
+import io.modelcontextprotocol.json.McpJsonDefaults;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 ```
 
