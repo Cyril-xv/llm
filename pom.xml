@@ -24,7 +24,6 @@
         <module>llm-pdd-refund</module>
         <module>llm-mcp-server</module>
         <module>llm-mcp-client</module>
-        <module>rag</module>
     </modules>
 
     <properties>
