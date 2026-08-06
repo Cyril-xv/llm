@@ -4,6 +4,7 @@ import com.cyril.llm.springai.controller.dto.DocumentChunkingResponse;
 import com.cyril.llm.springai.rag.DocumentChunkingService;
 import com.cyril.llm.springai.rag.DocumentCleaningService;
 import com.cyril.llm.springai.rag.DocumentReaderStrategySelector;
+import com.cyril.llm.springai.rag.EmbeddingService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.document.Document;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.io.File;
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 @RestController
@@ -24,24 +26,21 @@ public class RagController {
     private final DocumentReaderStrategySelector selector;
     private final DocumentCleaningService cleaningService;
     private final DocumentChunkingService chunkingService;
+    private final EmbeddingService embeddingService;
 
     @Autowired
     public RagController(DocumentReaderStrategySelector selector,
                          DocumentCleaningService cleaningService,
-                         DocumentChunkingService chunkingService) {
+                         DocumentChunkingService chunkingService,
+                         EmbeddingService embeddingService) {
         this.selector = selector;
         this.cleaningService = cleaningService;
         this.chunkingService = chunkingService;
+        this.embeddingService = embeddingService;
     }
 
     // ---- 公共阶段 ----
 
-    /**
-     * 读取并清洗 —— /rag/read 和 /rag/split 共用的编排方法。
-     *
-     * @param path 文件的绝对路径
-     * @return 读取并清洗后的 Document 列表
-     */
     private List<Document> readAndClean(String path) {
         File file = new File(path);
         if (!file.exists() || !file.isFile()) {
@@ -58,40 +57,30 @@ public class RagController {
 
     // ---- endpoints ----
 
-    /**
-     * 读取并清洗文档
-     *
-     * <pre>
-     * GET /rag/read?path=/path/to/file.pdf
-     * </pre>
-     *
-     * @param path 文件的绝对路径
-     * @return 读取并清洗后的 Document 列表（JSON 格式）
-     */
     @GetMapping("/read")
     public List<Document> readDocument(@RequestParam("path") String path) {
         return readAndClean(path);
     }
 
-    /**
-     * 读取 → 清洗 → Token 分片
-     *
-     * 注意：这是纯本地计算，不调用 embedding 模型，不访问向量数据库。
-     * chunkSize 是 token 预算，不是 Java 字符数。
-     *
-     * <pre>
-     * GET /rag/split?path=/path/to/file.txt&chunkSize=80
-     * </pre>
-     *
-     * @param path     文件的绝对路径
-     * @param chunkSize 每片的 token 预算（默认 800；练习建议传较小值以观察多 chunk 效果）
-     * @return 包含分片统计、每片文本、字符长度和 metadata 的响应
-     */
     @GetMapping("/split")
     public DocumentChunkingResponse split(@RequestParam("path") String path,
                                           @RequestParam(name = "chunkSize", defaultValue = "800") int chunkSize) {
         List<Document> cleaned = readAndClean(path);
         List<Document> chunks = chunkingService.split(cleaned, chunkSize);
         return DocumentChunkingResponse.from(chunks, chunkSize, cleaned.size());
+    }
+
+    @GetMapping("/embed")
+    public Map<String, Object> embed(@RequestParam("path") String path,
+                                     @RequestParam(name = "chunkSize", defaultValue = "200") int chunkSize) {
+        List<Document> cleaned = readAndClean(path);
+        List<Document> chunks = chunkingService.split(cleaned, chunkSize);
+        embeddingService.embedAndStore(chunks);
+        return Map.of("success", true, "chunks", chunks.size(), "chunkSize", chunkSize);
+    }
+
+    @GetMapping("/search")
+    public List<Document> search(@RequestParam("query") String query) {
+        return embeddingService.search(query, 3);
     }
 }

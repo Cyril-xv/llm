@@ -4,12 +4,30 @@ spring:
 
   ai:
     openai:
-      api-key: ${OPENAI_API_KEY:your-api-key}
-      base-url: ${OPENAI_BASE_URL:https://api.openai.com}
+      api-key: ${DEEPSEEK_API_KEY}
+      base-url: https://api.deepseek.com
       chat:
         options:
-          model: gpt-4o-mini
-          temperature: 0.7
+          model: deepseek-v4-flash
+      embedding:
+        base-url: https://dashscope.aliyuncs.com/compatible-mode
+        api-key: ${DASHSCOPE_API_KEY}
+        options:
+          model: text-embedding-v4
+          dimensions: 768
+    vectorstore:
+      pgvector:
+        index-type: HNSW              # HNSW = 分层可导航小世界图，检索快但多占内存
+        distance-type: COSINE_DISTANCE # 余弦距离，比方向不比长度，适合文本语义
+        dimensions: 768                # 向量维度，必须和 embedding 模型输出一致
+        max-document-batch-size: 10    # 每次往库里批量写几条（受 embedding 模型限制）
+        initialize-schema: true        # 首次启动自动建表，跑通后改 false
+        table-name: vector_store       # 表名随便起
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/rag_test
+    username: pgvector
+    password: 123456
 
 server:
   port: 8081
