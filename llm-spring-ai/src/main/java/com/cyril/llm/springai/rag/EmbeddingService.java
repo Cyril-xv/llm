@@ -1,6 +1,9 @@
 package com.cyril.llm.springai.rag;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.model.ChatModel;
+import org.springframework.ai.chat.prompt.Prompt;
+import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.document.Document;
 import org.springframework.ai.embedding.EmbeddingModel;
 import org.springframework.ai.vectorstore.SearchRequest;
@@ -8,9 +11,9 @@ import org.springframework.ai.vectorstore.VectorStore;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
-import java.util.Objects;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 向量化 + 向量存储服务
@@ -28,6 +31,9 @@ public class EmbeddingService {
 
     @Autowired
     private VectorStore vectorStore;
+
+    @Autowired
+    private ChatModel chatModel;
 
 
     /**
@@ -64,10 +70,41 @@ public class EmbeddingService {
      * 3. log.info 打印结果数量和每条分数
      * 4. 返回 List<Document>
      */
-    public List<Document> search(String query, int topK) {
-        SearchRequest build = SearchRequest.builder().query(query).topK(topK).build();
+    public List<Document> search(String query, int topK, String fileName) {
+        SearchRequest build = SearchRequest.builder()
+                .query(query)
+                .topK(topK)
+                .similarityThreshold(0.3)
+//                .filterExpression("fileName == '" + fileName + "'")
+                .build();
         List<Document> documents = vectorStore.similaritySearch(build);
-        log.info("SearchRequest:{} | doucuments:{}",build,documents);
+        log.info("SearchRequest:{} | documents:{}", build, documents.size());
         return documents;
+    }
+
+    public String retrieve(String query, int topK, String fileName) {
+        // 1. 检索
+        List<Document> documents = search(query, topK, fileName);
+
+        // 2. 把检索到的文档拼成字符串，填入 {document} 占位符
+        String context = documents.stream()
+                .map(Document::getText)
+                .collect(Collectors.joining("\n---\n"));
+
+        // 3. PromptTemplate 负责把 {document} 和 {query} 替换成实际值
+        String templateStr = """
+                你是一名资深的后端程序员，请你根据rag知识库中的知识进行回答用户。
+                当 rag 知识库中没有此项，你要告知用户暂无该知识。
+
+                rag知识库：
+                {document}
+
+                用户的问题：{query}
+                """;
+        PromptTemplate template = new PromptTemplate(templateStr);
+        Prompt prompt = template.create(Map.of("document", context, "query", query));
+
+        // 4. 调大模型
+        return chatModel.call(prompt).getResult().getOutput().getText();
     }
 }

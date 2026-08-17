@@ -4,14 +4,14 @@ spring:
 
   ai:
     openai:
-      api-key: ${DEEPSEEK_API_KEY}
-      base-url: https://api.deepseek.com
+      api-key: sk-ws-H.EPIYIDM.v6Gz.MEUCIQDcFl2bqaq1Zp_B_iw7UlSuD6SRH0HNQXe8-LRoO79_gwIgJMQ2Rbnr22HPhPRokEAldsugpW1G881arKu3VIYxXe8
+      base-url: https://dashscope.aliyuncs.com/compatible-mode
       chat:
         options:
-          model: deepseek-v4-flash
+          model: qwen3.7-plus
       embedding:
         base-url: https://dashscope.aliyuncs.com/compatible-mode
-        api-key: ${DASHSCOPE_API_KEY}
+        api-key: sk-ws-H.EPIYIDM.v6Gz.MEUCIQDcFl2bqaq1Zp_B_iw7UlSuD6SRH0HNQXe8-LRoO79_gwIgJMQ2Rbnr22HPhPRokEAldsugpW1G881arKu3VIYxXe8
         options:
           model: text-embedding-v4
           dimensions: 768

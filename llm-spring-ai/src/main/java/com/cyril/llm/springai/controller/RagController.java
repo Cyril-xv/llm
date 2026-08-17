@@ -80,7 +80,14 @@ public class RagController {
     }
 
     @GetMapping("/search")
-    public List<Document> search(@RequestParam("query") String query) {
-        return embeddingService.search(query, 3);
+    public List<Document> search(@RequestParam("query") String query,
+                                 @RequestParam(name = "fileName", required = false, defaultValue = "") String fileName) {
+        return embeddingService.search(query, 3, fileName);
+    }
+
+    @GetMapping("/retrieve")
+    public String retrieve(@RequestParam("query") String query,
+                           @RequestParam(name = "fileName", required = false, defaultValue = "") String fileName) {
+        return embeddingService.retrieve(query, 3, fileName);
     }
 }
