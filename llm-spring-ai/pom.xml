@@ -32,6 +32,13 @@
             <version>2.18.0</version>
         </dependency>
 
+        <!-- fastjson2（问题重写器解析 LLM 返回的 JSON 数组） -->
+        <dependency>
+            <groupId>com.alibaba.fastjson2</groupId>
+            <artifactId>fastjson2</artifactId>
+            <version>2.0.53</version>
+        </dependency>
+
         <!-- PDF 读取器 -->
         <dependency>
             <groupId>org.springframework.ai</groupId>
